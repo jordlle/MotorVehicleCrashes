@@ -1,0 +1,344 @@
+---
+title: "Motor Vehicle Crashes"
+author: "Jordan Ledbetter"
+date: "2023-03-24"
+output:
+  slidy_presentation: default
+  ioslides_presentation: default
+  beamer_presentation: default
+---
+
+<style type = "text/css"> 
+body p, div, h1, h2, h3, h4, h5 {
+color: black;
+font-family: Georgia;
+}
+slides > slide.title-slide hgroup h1 {
+  color: green;
+}
+h2 {
+color: blue;
+font-size: 40px;
+}
+slides > slide {
+color: black;
+font-family: Georgia;
+}
+</style>
+
+## Getting Started
+<font color = "green">Importing Libraries </font><br>
+<font size = '4'>Packages provide a comprehensive set of tools for data visualization and data manipulation. Each of these packages contain various pre-written functions that can assist us in cleaning, reshaping, and visualizing our data. </font>
+
+```{r echo = TRUE, results = 'hide', message=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(ggmap)
+library(htmltools)
+```
+
+## Getting Started
+<font color = "green">Importing the Data </font><br>
+<font size = '4'>We will refer to our data set as MotorVehicleCrashes.
+**Note:** that this dataset contains nearly two million entries, and most entries contain at least one missing value for a column. </font>
+```{r}
+MotorVehicleCrashes <- read.csv("~/Downloads/Motor_Vehicle_Collisions_-_Crashes.csv")
+```
+
+## Brief Overview
+This dataset contains information about all the motor vehicle collisions that occurred in New York City from 2013-2022 reported by NYPD. It is required of the police department to report these collisions only if there is an injury, fatality, or a minimum of $1,000 in damage.
+
+The following data contains information including: Crash date and time, location (borough, zip code, latitude/longitude, street, cross streets), persons injured or killed (recorded for persons involved, pedestrians, cyclists, and motorists), contributing factors for each vehicle involved, vehicle type.
+
+More information can be found at the link below.
+https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Crashes/h9gi-nx95
+
+## Objective
+By analyzing the dataset and defining the problems it presents, we can help improve public safety by reducing the number of collisions on the road.
+
+It is important to identify trends and patterns in the occurrence of motor vehicle collisions, understand the underlying causes of these collisions, and develop interventions to prevent them. The data can help us identify high-risk areas, specific factors contributing to collisions, and types of vehicles involved.
+
+Additionally, the injury and fatality data can give us a clear understanding of the severity of collisions and their impact on public health and safety. By defining these problems, policymakers, transportation agencies, and community leaders can develop targeted strategies to improve road safety, reduce the number of collisions, and save lives.
+
+## The Impact of Collisions
+How many collisions have resulted in injuries or deaths over the past ten years? How often are pedestrians, cyclists, and motorists involved in motor vehicle collisions? How often are pedestrians, cyclists, and motorists killed in motor vehicle collisions?
+
+```{r, echo = FALSE}
+# total injuries in the dataset
+injuries <- MotorVehicleCrashes |>
+  filter(!is.na(NUMBER.OF.PERSONS.INJURED)) |>
+  summarise(totalInjuries = sum(NUMBER.OF.PERSONS.INJURED))
+
+# total pedestrian injuries
+injuries_ped <- MotorVehicleCrashes |>
+  filter(!is.na(NUMBER.OF.PEDESTRIANS.INJURED)) |>
+  summarise(totalInjuries = sum(NUMBER.OF.PEDESTRIANS.INJURED))
+
+# total cyclists injured
+injuries_cycle <- MotorVehicleCrashes |>
+  filter(!is.na(NUMBER.OF.CYCLIST.INJURED)) |>
+  summarise(totalInjuries = sum(NUMBER.OF.CYCLIST.INJURED))
+
+# total motorists injured
+injuries_motor <- MotorVehicleCrashes |>
+  filter(!is.na(NUMBER.OF.MOTORIST.INJURED)) |>
+  summarise(totalInjuries = sum(NUMBER.OF.MOTORIST.INJURED))
+
+# total deaths in the dataset
+deaths <- MotorVehicleCrashes |>
+  filter(!is.na(NUMBER.OF.PERSONS.KILLED)) |>
+  summarise(totalDeaths = sum(NUMBER.OF.PERSONS.KILLED))
+
+# total pedestrian deaths
+deaths_ped <- MotorVehicleCrashes |>
+  filter(!is.na(NUMBER.OF.PEDESTRIANS.KILLED)) |>
+  summarise(totalDeaths = sum(NUMBER.OF.PEDESTRIANS.KILLED))
+
+# total cyclists deaths
+deaths_cycle <- MotorVehicleCrashes |>
+  filter(!is.na(NUMBER.OF.CYCLIST.KILLED)) |>
+  summarise(totalDeaths = sum(NUMBER.OF.CYCLIST.KILLED))
+
+# total motorists killed
+deaths_motor <- MotorVehicleCrashes |>
+  filter(!is.na(NUMBER.OF.MOTORIST.KILLED)) |>
+  summarise(totalDeaths = sum(NUMBER.OF.MOTORIST.KILLED))
+
+# combine all subsets into a single dataset
+# for injuries
+impact_injuries <- rbind(injuries_ped, injuries_cycle, injuries_motor, injuries)
+impact_injuries$Person <- c("Pedestrians","Cyclists","Motorists","Total")
+impact_injuries
+# for deaths
+impact_deaths <- rbind(deaths_ped, deaths_cycle, deaths_motor, deaths)
+impact_deaths$Person <- c("Pedestrians","Cyclists","Motorists","Total")
+impact_deaths
+  
+```
+
+## High-Risk Areas
+Let's first analyze collisions by borough.
+
+```{r, echo = FALSE}
+# find total collisions, injuries, and deaths by borough
+crashesByBorough <- MotorVehicleCrashes |>
+  filter(BOROUGH != "") |>
+  group_by(BOROUGH) |>
+  summarise(total_collisions = n(),
+            total_injuries = sum(NUMBER.OF.PERSONS.INJURED, na.rm = TRUE),
+            total_deaths = sum(NUMBER.OF.PERSONS.KILLED, na.rm = TRUE)) |>
+  arrange(desc(total_deaths))
+
+crashesByBorough
+```
+The table above shows the total number of collisions, the total number of people injured in crashes, and the total number of deaths in motor vehicle crashes for each borough in New York City.
+
+We can conclude from the table that Brooklyn has the most amount of motor vehicle crashes, injuries, and deaths while Staten Island has the least amount of motor vehicle collisions.
+
+## Map of Collisions Across NYC
+Each coordinate on the map represents a fatal vehicular accident, whether the fatality represents the driver, a pedestrian, or a cyclist.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+# coordinates of fatal crashes
+deathLocations <- MotorVehicleCrashes |>
+  filter(NUMBER.OF.PERSONS.KILLED != 0 & LATITUDE != "" & LONGITUDE != "") |>
+  select(LONGITUDE, LATITUDE)
+
+# count of deaths per coordinate
+deathCount <- deathLocations |>
+  group_by(LONGITUDE, LATITUDE) |>
+  summarise(total_deaths = n())
+
+# Define the bounding box coordinates for the map
+bbox <- c(left = -74.2589, bottom = 40.4961, right = -73.7004, top = 40.9156)
+
+# Get the OpenStreetMap as a ggmap object
+map <- get_stamenmap(bbox, zoom = 13, maptype = "toner-lite")
+
+# Create a ggplot object with the ggmap as the background
+my_plot <- ggmap(map)
+
+# Add points to the ggplot object
+my_plot <- my_plot +
+  geom_point(data = deathCount, aes(x = LONGITUDE, y = LATITUDE), size = 0.03, alpha = 0.3, color = 'red') +
+  ggtitle("Locations of Fatal Crashes") +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  theme(axis.ticks = element_blank(), axis.text = element_blank())
+
+# Display the ggplot object
+my_plot
+```
+
+## Collision Patterns
+How has the frequency of vehicular collisions changed over the past ten years?
+
+```{r, echo = FALSE}
+# Extract the year from the CRASH.DATE column
+MotorVehicleCrashes$YEAR <- format(as.Date(MotorVehicleCrashes$CRASH.DATE, "%m/%d/%Y"), "%Y")
+
+# Subset the data by year and calculate the total collisions, injuries, and deaths
+yearly_stats <- MotorVehicleCrashes |>
+  filter(YEAR != 2023 & YEAR != 2012) |>
+  group_by(YEAR) |>
+  summarise(total_collisions = n())
+           
+# create barplot
+impact_plot <- barplot(yearly_stats$total_collisions,
+                       names.arg = yearly_stats$YEAR,
+                       main = "Impact of Collisions Each Year",
+                       xlab = "Year",
+                       ylab = "Total Collisions",
+                       ylim = c(0,275000),
+                       col = topo.colors(length(yearly_stats$YEAR)))
+```
+
+## Collision Patterns
+Are motor vehicle collisions more likely to occur on a certain day?
+
+```{r, echo = FALSE, results = 'hide'}
+# Convert the CRASH.DATE column to a date format
+MotorVehicleCrashes$CRASH.DATE <- as.Date(MotorVehicleCrashes$CRASH.DATE, format = "%m/%d/%Y")
+
+# Add a new column to the dataset for the day of the week
+MotorVehicleCrashes$DAY_OF_WEEK <- weekdays(MotorVehicleCrashes$CRASH.DATE)
+
+# Change order of dates
+MotorVehicleCrashes$DAY_OF_WEEK <- factor(MotorVehicleCrashes$DAY_OF_WEEK, levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+```
+
+```{r, echo = FALSE}
+# calculate number of collisions for each day of the week
+collisionsByDay <- MotorVehicleCrashes |>
+  group_by(DAY_OF_WEEK) |>
+  summarise(num_collisions = n())
+
+# create a barplot to show collisions by day of the week
+barplot(collisionsByDay$num_collisions, names.arg = collisionsByDay$DAY_OF_WEEK,
+        xlab = "Day of the Week",
+        ylab = "Number of Collisions",
+        main = "Collisions by Day of the Week",
+        ylim = c(0,350000),
+        col = c(2,4,3,5,6,7,"pink"))
+```
+
+## Collision Patterns
+Are motor vehicle collisions more likely to occur at a certain time of the day?
+```{r, echo = FALSE}
+# compute time of collision to hour it happened
+MotorVehicleCrashes$CRASH.TIME <- as.POSIXct(MotorVehicleCrashes$CRASH.TIME, format = "%H:%M", tz = "GMT")
+MotorVehicleCrashes$HOUR_OF_DAY <- as.numeric(format(MotorVehicleCrashes$CRASH.TIME, format = "%H"))
+
+# compute the total number of collisions by hour of the day
+total_collisions <- MotorVehicleCrashes %>% 
+  group_by(HOUR_OF_DAY) %>% 
+  summarise(num_collisions = n())
+
+# create a line graph of the total number of collisions by hour of the day
+ggplot(total_collisions, aes(x = HOUR_OF_DAY, y = num_collisions)) + 
+  geom_line() +
+  geom_point() +
+  xlab("Hour of the Day") +
+  ylab("Total Number of Collisions") +
+  ggtitle("Total Number of Collisions by Hour of the Day") +
+  xlim(c(0,23)) +
+  ylim(c(20000,150000))
+```
+
+## How Humans Play a Role
+The data set presents a hundred reasons how someone could be involved in a motor vehicle accident. 
+What are the leading causes of motor vehicle accidents?
+```{r, echo = FALSE}
+# create a subset of the leading causes of vehicle collisions
+factors <- MotorVehicleCrashes |>
+  filter(CONTRIBUTING.FACTOR.VEHICLE.1 != "Unspecified" & CONTRIBUTING.FACTOR.VEHICLE.1 != "Other Vehicular") |>
+  group_by(CONTRIBUTING.FACTOR.VEHICLE.1) |>
+  summarise(total_collisions = n()) |>
+  arrange(desc(total_collisions))
+
+# graph to show total collisions for top eight leading causes
+factors <- head(factors, n = 8)
+pie(factors$total_collisions, labels = factors$CONTRIBUTING.FACTOR.VEHICLE.1, col = c(2,3,4,5,6,7,"pink","purple"), main = "Leading Causes of Vehicle Crashes")
+```
+
+## How Humans Play a Role
+Which contributing factors are most likely to result in an injury?
+```{r, echo = FALSE}
+# most dangerous contributing factors
+# injuries
+injuriesFactor <- MotorVehicleCrashes |>
+  filter(CONTRIBUTING.FACTOR.VEHICLE.1 != "" & CONTRIBUTING.FACTOR.VEHICLE.1 != "Unspecified" & CONTRIBUTING.FACTOR.VEHICLE.1 != "Other Vehicular") |>
+  group_by(CONTRIBUTING.FACTOR.VEHICLE.1) |>
+  summarise(total_injuries = sum(NUMBER.OF.PERSONS.INJURED, na.rm = TRUE)) |>
+  arrange(desc(total_injuries))
+
+head(injuriesFactor, n =10)
+```
+## How Humans Play a Role
+Which contributing factors are most likely to result in a fatality?
+```{r, echo=FALSE}
+# deaths
+deathFactor <- MotorVehicleCrashes |>
+  filter(CONTRIBUTING.FACTOR.VEHICLE.1 != "" & CONTRIBUTING.FACTOR.VEHICLE.1 != "Unspecified" & CONTRIBUTING.FACTOR.VEHICLE.1 != "Other Vehicular") |>
+  group_by(CONTRIBUTING.FACTOR.VEHICLE.1) |>
+  summarise(total_deaths = sum(NUMBER.OF.PERSONS.KILLED, na.rm = TRUE)) |>
+  arrange(desc(total_deaths))
+
+head(deathFactor, n = 10)
+```
+
+## The Result of Dangerous Driving
+What are unsafe driving habits that are most likely to result in a motor vehicle collision?
+```{r, echo = FALSE}
+# subset data to find most common dangerous driving habits
+dangerDrivers <- MotorVehicleCrashes |>
+  filter(`CONTRIBUTING.FACTOR.VEHICLE.1` %in% c("Alcohol Involvement", "Aggressive Driving/Road Rage","Fell Asleep","Drugs (illegal)","Eating or Drinking","Cell Phone (hand-Held)", "Listening/Using Headphones")) |>
+  group_by(CONTRIBUTING.FACTOR.VEHICLE.1) |>
+  summarise(total_collisions = n()) |>
+  arrange(desc(total_collisions))
+
+# create barplot for collisions per dangerous driving habit
+par(mar=c(2, 13, 3, 3))
+barplot(dangerDrivers$total_collisions, names.arg = dangerDrivers$CONTRIBUTING.FACTOR.VEHICLE.1,
+        horiz = TRUE,
+        main = "Dangerous Drivers",
+        xlim = c(0,30000),
+        col = c(2,3,4,5,6,7,"pink"),
+        las = 1)
+
+```
+
+## Vehicle-Related Problems
+What are some common vehicular problems that could cause a collision during operation?
+```{r, echo = FALSE}
+# identify car problems
+problems <- MotorVehicleCrashes |>
+  filter(`CONTRIBUTING.FACTOR.VEHICLE.1` %in% c("Brakes Defective","Steering Failure","Tire Failure/Inadequate", "Accelerator Defective","Headlights Defective")) |>
+  group_by(CONTRIBUTING.FACTOR.VEHICLE.1) |>
+  summarise(total = n()) |>
+  arrange(desc(total))
+
+# create barplot to show most common car problems
+par(mar=c(2, 13, 3, 3))
+barplot(problems$total, names.arg = problems$CONTRIBUTING.FACTOR.VEHICLE.1,
+        horiz = TRUE,
+        main = "Vehicle-Related Problems",
+        xlim = c(0,7000),
+        col = c(2,3,4,5,6,7,"pink","purple"),
+        las = 1)
+```
+
+
+## The Signficance of Analyzing this Data
+- Help identify the most common causes of collisions, which can inform safety policies and interventions aimed at reducing collisions and improving road safety.
+
+- Help identify areas or intersections with high collision rates, allowing for more targeted allocation of resources such as traffic enforcement, traffic engineering improvements, or educational campaigns.
+
+- Help insurers and lawyers better understand the risks associated with different types of drivers, vehicles, and road conditions, which can inform insurance policies and legal decisions.
+
+- Help researchers better understand the factors that contribute to collisions, which can inform the development of new technologies and policies aimed at improving road safety.
+
+
+
